@@ -1,0 +1,23 @@
+{
+  "fallback": { "browser": "com.brave.Browser", "profile": "Profile 13" },
+  "rules": [
+    {
+      "name": "Teams goes to Work",
+      "when": [ { "app": "com.microsoft.teams2" } ],
+      "open": { "browser": "com.brave.Browser", "profile": "Profile 14" }
+    },
+    {
+      "name": "Example: Discord goes to Work, except GitHub",
+      "enabled": false,
+      "when": [ { "app": "com.hnc.Discord" } ],
+      "open": { "browser": "com.brave.Browser", "profile": "Profile 14" },
+      "except": [
+        {
+          "name": "GitHub stays in Cnerd",
+          "when": [ { "host": "github.com", "match": "domain" } ],
+          "open": { "browser": "com.brave.Browser", "profile": "Profile 13" }
+        }
+      ]
+    }
+  ]
+}

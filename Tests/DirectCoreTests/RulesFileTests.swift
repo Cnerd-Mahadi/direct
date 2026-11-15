@@ -54,3 +54,9 @@ import Testing
     let data = Chromium.singletonMessage(executable: "/B", profile: "Profile 14", url: URL(string: "https://a.com/x?y=1")!)
     #expect(String(decoding: data, as: UTF8.self) == "START\0/\0/B\0--profile-directory=Profile 14\0https://a.com/x?y=1")
 }
+
+@Test func shippedExampleRulesFileLoads() throws {
+    let file = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "../../Support/rules.example.json")
+    let set = try RuleSet.load(from: file)
+    #expect(set.route(Link(url: URL(string: "https://x.com")!, sourceApp: "com.microsoft.teams2")).rulePath == ["Teams goes to Work"])
+}

@@ -195,8 +195,35 @@ private struct RuleEditor: View {
                     .textSelection(.enabled)
             }
             Section {
-                DisclosureGroup("More options: match types and exceptions", isExpanded: $showMore) {
-                    ExceptionsList(exceptions: $rule.exceptions, defaultTarget: rule.target, targets: targets)
+                Button(showMore ? "Hide more options" : "Show more options: match types and exceptions",
+                       systemImage: showMore ? "chevron.down" : "chevron.right") { showMore.toggle() }
+                    .buttonStyle(.borderless)
+                if showMore {
+                    Text("Exceptions are checked only when this rule matches. The first matching exception decides instead.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            if showMore {
+                ForEach($rule.exceptions) { $exception in
+                    Section("Exception") {
+                        TextField("Name", text: $exception.name)
+                        Toggle("Exception is on", isOn: $exception.enabled)
+                        ConditionList(conditions: $exception.conditions, showMore: true)
+                        LabeledContent("Open it in") {
+                            TargetPicker(target: $exception.target, targets: targets)
+                        }
+                        Button("Remove exception", systemImage: "trash", role: .destructive) {
+                            rule.exceptions.removeAll { $0.id == exception.id }
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                }
+                Section {
+                    Button("Add exception", systemImage: "plus") {
+                        rule.exceptions.append(RuleDraft(name: "Exception", target: rule.target))
+                    }
+                    .buttonStyle(.borderless)
                 }
             }
         }
@@ -250,7 +277,10 @@ private struct ConditionRow: View {
                     .fixedSize()
                 }
                 TextField("", text: $condition.text, prompt: Text(condition.kind.placeholder))
+                    .labelsHidden()
+                    .multilineTextAlignment(.leading)
                     .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: .infinity)
                 if showMatch, condition.kind != .website {
                     Toggle("Match case", isOn: $condition.caseSensitive).fixedSize()
                 }
@@ -306,44 +336,6 @@ private struct AppMenu: View {
             }
             Divider()
             Button("Choose from Applications…") { if let option = Catalog.chooseApp() { onPick(option) } }
-        }
-    }
-}
-
-private struct ExceptionsList: View {
-    @Binding var exceptions: [RuleDraft]
-    var defaultTarget: Target
-    var targets: [TargetOption]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Exceptions are checked only when this rule matches. The first matching exception decides instead.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            ForEach($exceptions) { $exception in
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            TextField("Exception name", text: $exception.name).textFieldStyle(.roundedBorder)
-                            Toggle("On", isOn: $exception.enabled).fixedSize()
-                            Button { exceptions.removeAll { $0.id == exception.id } } label: { Image(systemName: "trash") }
-                                .buttonStyle(.borderless)
-                                .help("Remove exception")
-                        }
-                        Text("Except when the link").font(.caption).foregroundStyle(.secondary)
-                        ConditionList(conditions: $exception.conditions, showMore: true)
-                        HStack {
-                            Text("Open it in")
-                            TargetPicker(target: $exception.target, targets: targets)
-                        }
-                    }
-                    .padding(4)
-                }
-            }
-            Button("Add exception", systemImage: "plus") {
-                exceptions.append(RuleDraft(name: "Exception", target: defaultTarget))
-            }
-            .buttonStyle(.borderless)
         }
     }
 }

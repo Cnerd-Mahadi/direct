@@ -34,6 +34,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(withTitle: "Quit Direct", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
         item.menu = menu
         statusItem = item
+        // Direct lives in the menu bar, so a first launch from Applications would otherwise show nothing.
+        if !FileManager.default.fileExists(atPath: Paths.rules.path) { showHub() }
     }
 
     /// Launching Direct.app again while it runs opens its window.
@@ -136,6 +138,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func loadRules() -> (RuleSet, [String]) {
         do {
             return (try RuleSet.load(from: Paths.rules), [])
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            // A fresh install has no rules yet, so every link goes to the picker.
+            return (RuleSet(rules: [], fallback: .ask), [])
         } catch {
             return (RuleSet(rules: [], fallback: Self.lastResort), ["Could not read \(Paths.rules.path): \(error)"])
         }

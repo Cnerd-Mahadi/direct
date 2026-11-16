@@ -38,9 +38,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.title = "Direct"
             window.setContentSize(NSSize(width: 900, height: 600))
             window.isReleasedWhenClosed = false
+            window.delegate = self
             window.center()
             rulesWindow = window
         }
+        // A Dock icon and ⌘-Tab while the window is open, so it can't get lost behind other apps.
+        NSApp.setActivationPolicy(.regular)
         NSApp.activate()
         rulesWindow?.makeKeyAndOrderFront(nil)
     }
@@ -142,5 +145,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 error: problems.isEmpty ? nil : problems.joined(separator: " | ")
             ))
         }
+    }
+}
+
+extension AppDelegate: NSWindowDelegate {
+    func windowWillClose(_ notification: Notification) {
+        NSApp.setActivationPolicy(.accessory)
     }
 }

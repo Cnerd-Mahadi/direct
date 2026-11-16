@@ -48,3 +48,18 @@ enum ActivityLog {
         }
     }
 }
+
+extension ActivityLog {
+    /// The most recent link Direct actually opened, so reopening survives a restart.
+    static func lastOpened() -> ActivityEntry? {
+        guard let data = try? Data(contentsOf: Paths.activityLog) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        for line in data.split(separator: 0x0A).reversed() {
+            if let entry = try? decoder.decode(ActivityEntry.self, from: Data(line)), entry.target != nil, entry.method != nil {
+                return entry
+            }
+        }
+        return nil
+    }
+}

@@ -241,7 +241,7 @@ private struct RuleEditor: View {
     }
 }
 
-private struct ConditionList: View {
+struct ConditionList: View {
     @Binding var conditions: [ConditionDraft]
     var showMore: Bool
 
@@ -262,7 +262,7 @@ private struct ConditionList: View {
     }
 }
 
-private struct ConditionRow: View {
+struct ConditionRow: View {
     @Binding var condition: ConditionDraft
     var showMatch: Bool
     var onDelete: () -> Void
@@ -301,7 +301,7 @@ private struct ConditionRow: View {
     }
 }
 
-private struct AppList: View {
+struct AppList: View {
     @Binding var apps: [String]
 
     var body: some View {
@@ -328,7 +328,7 @@ private struct AppList: View {
 }
 
 /// A menu of running apps plus "Choose…" for anything in /Applications.
-private struct AppMenu: View {
+struct AppMenu: View {
     var title: String
     var extra: [AppOption]
     var none: String?
@@ -349,7 +349,7 @@ private struct AppMenu: View {
     }
 }
 
-private struct TargetPicker: View {
+struct TargetPicker: View {
     @Binding var target: Target
     var targets: [TargetOption]
 

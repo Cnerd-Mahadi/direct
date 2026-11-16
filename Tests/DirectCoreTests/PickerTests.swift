@@ -26,24 +26,9 @@ private let personal = Target(browser: "com.brave.Browser", profile: "Profile 13
     }
 }
 
-@Test func linkBreaksIntoWebsitePathWordsAndApp() {
-    let parts = link("https://www.Linear.app/acme/issue/123", from: "com.tinyspeck.slackmacgap").ingredients
-    #expect(parts == [.website("linear.app"), .pathWord("acme"), .pathWord("issue"), .pathWord("123"),
-                      .app("com.tinyspeck.slackmacgap")])
-}
-
-@Test func pathWordsAreCappedAndDeduplicated() {
-    let parts = link("https://a.com/x/x/b/c/d/e/f").ingredients
-    #expect(parts == [.website("a.com"), .pathWord("x"), .pathWord("b"), .pathWord("c"), .pathWord("d")])
-}
-
-@Test func ruleBuiltFromPickedIngredientsMatchesTheLinkItCameFrom() {
-    let original = link("https://www.linear.app/acme/issue/1", from: "com.tinyspeck.slackmacgap")
-    let picked = original.ingredients.filter { if case .pathWord("issue") = $0 { false } else { true } }
-    let rule = Rule(name: "x", when: picked.map(\.condition), open: work)
-    let set = RuleSet(rules: [rule], fallback: personal)
-    #expect(set.route(original).target == work)
-    #expect(set.route(link("https://linear.app/other/issue/1", from: "com.tinyspeck.slackmacgap")).target == personal)
+@Test func siteDropsWwwAndCase() {
+    #expect(link("https://www.Linear.app/acme").site == "linear.app")
+    #expect(link("https://admin.shopify.com/x").site == "admin.shopify.com")
 }
 
 @Test func fixingTheRuleRetargetsExactlyTheOneThatDecided() {

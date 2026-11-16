@@ -8,7 +8,7 @@ import DirectCore
 @Observable
 final class RulesStore {
     var rules: [RuleDraft] = [] { didSet { save() } }
-    var fallback = Target(browser: "com.apple.Safari") { didSet { save() } }
+    var fallback: Fallback = .open(Target(browser: "com.apple.Safari")) { didSet { save() } }
     /// Set when rules.json exists but can't be read. Saving is off so a hand edit is never clobbered.
     private(set) var loadError: String?
     private(set) var saveError: String?

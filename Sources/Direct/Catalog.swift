@@ -16,12 +16,18 @@ struct AppOption: Identifiable, Hashable {
 /// What's installed on this Mac: browsers with their profiles, and app names and icons.
 @MainActor
 enum Catalog {
+    /// Other link routers register as browsers too. Offering them as targets would loop.
+    private static let routers: Set<String> = [
+        "com.webcatalog.switchbar", "com.cnerd.bravewd", "se.johnste.finicky",
+        "com.sindresorhus.Velja", "com.choosyosx.Choosy", "com.browserosaurus",
+    ]
+
     static func targets() -> [TargetOption] {
         var seen: Set<String> = []
         var options: [TargetOption] = []
         for appURL in NSWorkspace.shared.urlsForApplications(toOpen: URL(string: "https://example.com")!) {
             guard let id = Bundle(url: appURL)?.bundleIdentifier, id != Bundle.main.bundleIdentifier,
-                  seen.insert(id).inserted else { continue }
+                  !routers.contains(id), seen.insert(id).inserted else { continue }
             let name = displayName(appURL)
             let profiles = Chromium.userDataDir(for: id)
                 .flatMap { try? Data(contentsOf: $0.appending(path: "Local State")) }

@@ -17,6 +17,29 @@ extension RuleSet {
     }
 }
 
+/// "fallback": "ask" or "fallback": { "browser": ... }
+extension Fallback: Codable {
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.singleValueContainer()
+        if let word = try? c.decode(String.self) {
+            guard word == "ask" else {
+                throw DecodingError.dataCorruptedError(in: c, debugDescription: "fallback must be \"ask\" or a target")
+            }
+            self = .ask
+        } else {
+            self = .open(try c.decode(Target.self))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.singleValueContainer()
+        switch self {
+        case let .open(target): try c.encode(target)
+        case .ask: try c.encode("ask")
+        }
+    }
+}
+
 extension Rule: Codable {
     private enum Key: String, CodingKey { case name, enabled, when, open, except }
 

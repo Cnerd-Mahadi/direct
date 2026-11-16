@@ -52,7 +52,15 @@ struct RulesView: View {
             Divider()
             VStack(alignment: .leading, spacing: 6) {
                 Text("Everything else opens in").font(.caption).foregroundStyle(.secondary)
-                TargetPicker(target: $store.fallback, targets: targets)
+                Picker("", selection: $store.fallback) {
+                    Text("Ask me").tag(Fallback.ask)
+                    Divider()
+                    ForEach(targets) { Text($0.label).tag(Fallback.open($0.target)) }
+                    if case let .open(target) = store.fallback, !targets.contains(where: { $0.target == target }) {
+                        Text(Catalog.label(for: target, in: targets)).tag(store.fallback)
+                    }
+                }
+                .labelsHidden()
             }
             .padding(10)
         }
@@ -70,7 +78,8 @@ struct RulesView: View {
     }
 
     private func addRule() {
-        let rule = RuleDraft(name: "New rule", target: store.fallback)
+        let fallbackTarget: Target? = if case let .open(target) = store.fallback { target } else { nil }
+        let rule = RuleDraft(name: "New rule", target: fallbackTarget ?? targets.first?.target ?? Target(browser: "com.apple.Safari"))
         store.rules.append(rule)
         selection = rule.id
     }
@@ -119,7 +128,7 @@ private struct TestBar: View {
             if let decision {
                 HStack(spacing: 6) {
                     Image(systemName: "arrow.turn.down.right").foregroundStyle(.secondary)
-                    Text(Catalog.label(for: decision.target, in: targets)).bold()
+                    Text(decision.target.map { Catalog.label(for: $0, in: targets) } ?? "You'll be asked").bold()
                     Text(decision.rulePath.isEmpty ? "No rule matched, so the fallback applies"
                                                    : "via " + decision.rulePath.joined(separator: " › "))
                         .foregroundStyle(.secondary)

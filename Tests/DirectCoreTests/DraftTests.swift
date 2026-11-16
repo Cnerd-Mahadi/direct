@@ -17,9 +17,9 @@ private func link(_ url: String, from app: String? = nil) -> Link {
 @Test func newRuleFromTheWindowCatchesNothingUntilFilledIn() {
     var draft = RuleDraft(name: "New rule", target: Target(browser: "b"))
     let set = { RuleSet(rules: [draft.rule], fallback: Target(browser: "fallback")) }
-    #expect(set().route(link("https://github.com")).target.browser == "fallback")
+    #expect(set().route(link("https://github.com")).target?.browser == "fallback")
     draft.conditions[0].text = "github.com"
-    #expect(set().route(link("https://github.com")).target.browser == "b")
+    #expect(set().route(link("https://github.com")).target?.browser == "b")
 }
 
 @Test func pastedLinkInWebsiteFieldBecomesHost() {

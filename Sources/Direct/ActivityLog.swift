@@ -22,8 +22,10 @@ struct ActivityEntry: Codable {
     var sourceApp: String?
     var sourceVia: SourceVia
     var rule: [String]
-    var target: Target
+    var target: Target?
     var method: OpenMethod?
+    /// True when the person chose in the picker rather than a rule deciding.
+    var picked: Bool?
     var error: String?
 }
 

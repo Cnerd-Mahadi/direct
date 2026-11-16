@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import SwiftUI
 import DirectCore
 
@@ -11,6 +12,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var rulesWindow: NSWindow?
     private let store = RulesStore()
+    private let picker = PickerController()
+    /// The last link Direct opened and how, for the reopen shortcut.
+    private var lastLink: DirectCore.Link?
+    private var lastDecision: Decision?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = Self.makeMainMenu()
@@ -18,6 +23,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Direct")
         let menu = NSMenu()
         menu.addItem(withTitle: "Rules…", action: #selector(showRules), keyEquivalent: ",")
+        let reopen = menu.addItem(withTitle: "Reopen Last Link…", action: #selector(reopenLastLink), keyEquivalent: "d")
+        reopen.keyEquivalentModifierMask = [.control, .option]
+        let registered = HotKey.register(id: 1, keyCode: kVK_ANSI_D, modifiers: controlKey | optionKey) { [weak self] in
+            self?.reopenLastLink()
+        }
+        if !registered { reopen.title = "Reopen Last Link… (⌃⌥D is taken by another app)" }
         menu.addItem(withTitle: "Show Activity Log in Finder", action: #selector(showActivityLog), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Direct", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
@@ -125,26 +136,97 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             problems.append("Could not read \(Paths.rules.path): \(error)")
             rules = RuleSet(rules: [], fallback: Self.lastResort)
         }
-        let decision = rules.route(Link(url: url, sourceApp: sourceApp))
+        let link = DirectCore.Link(url: url, sourceApp: sourceApp)
+        let decision = rules.route(link)
 
+        let optionHeld = NSEvent.modifierFlags.contains(.option)
+        if let target = decision.target, !optionHeld {
+            open(link, in: target, decision: decision, via: via, picked: false, problems: problems)
+        } else {
+            showPicker(PickerRequest(link: link, decision: decision, reason: optionHeld ? .modifierHeld : .noRuleMatched),
+                       via: via, problems: problems)
+        }
+    }
+
+    private func showPicker(_ request: PickerRequest, via: ActivityEntry.SourceVia, problems: [String]) {
+        picker.show(request, options: Catalog.targets()) { [weak self] choice in
+            guard let self else { return }
+            guard let choice else {
+                ActivityLog.append(ActivityEntry(url: request.link.url.absoluteString, sourceApp: request.link.sourceApp,
+                                                 sourceVia: via, rule: [], target: nil, picked: true,
+                                                 error: "Picker closed without choosing"))
+                return
+            }
+            var problems = problems
+            var decision = Decision(target: choice.target, rulePath: [], ruleIndices: [])
+            if let change = choice.ruleChange {
+                do {
+                    decision.ruleIndices = try self.apply(change, target: choice.target)
+                    if case let .add(rule) = change { decision.rulePath = [rule.name] }
+                    if request.reason == .reopen, case .retarget = change { decision.rulePath = request.decision.rulePath }
+                } catch {
+                    problems.append("Could not save the rule: \(error)")
+                }
+            }
+            self.open(request.link, in: choice.target, decision: decision, via: via, picked: true, problems: problems)
+        }
+    }
+
+    /// Writes a rule change from the picker to rules.json and returns the changed rule's position.
+    private func apply(_ change: RuleChange, target: Target) throws -> [Int] {
+        var rules: RuleSet
+        do {
+            rules = try RuleSet.load(from: Paths.rules)
+        } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
+            rules = RuleSet(rules: [], fallback: .ask)
+        }
+        let indices: [Int]
+        switch change {
+        case let .add(rule):
+            rules.rules.insert(rule, at: 0)
+            indices = [0]
+        case let .retarget(path):
+            guard rules.setTarget(target, forRuleAt: path) else { throw OpenError(description: "That rule no longer exists") }
+            indices = path
+        }
+        try FileManager.default.createDirectory(at: Paths.rules.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try rules.encoded().write(to: Paths.rules, options: .atomic)
+        if rulesWindow?.isVisible == true { store.load() }
+        return indices
+    }
+
+    private func open(_ link: DirectCore.Link, in target: Target, decision: Decision, via: ActivityEntry.SourceVia,
+                      picked: Bool, problems: [String]) {
+        lastLink = link
+        lastDecision = Decision(target: target, rulePath: decision.rulePath, ruleIndices: decision.ruleIndices)
         Task {
+            var problems = problems
             var method: OpenMethod?
             do {
-                method = try await Opener.open(url, in: decision.target)
+                method = try await Opener.open(link.url, in: target)
             } catch {
                 problems.append("\(error)")
-                method = try? await Opener.open(url, in: Self.lastResort)
+                method = try? await Opener.open(link.url, in: Self.lastResort)
             }
             ActivityLog.append(ActivityEntry(
-                url: url.absoluteString,
-                sourceApp: sourceApp,
+                url: link.url.absoluteString,
+                sourceApp: link.sourceApp,
                 sourceVia: via,
                 rule: decision.rulePath,
-                target: decision.target,
+                target: target,
                 method: method,
+                picked: picked ? true : nil,
                 error: problems.isEmpty ? nil : problems.joined(separator: " | ")
             ))
         }
+    }
+
+    @objc private func reopenLastLink() {
+        guard let lastLink, let lastDecision else {
+            NSSound.beep()
+            return
+        }
+        showPicker(PickerRequest(link: lastLink, decision: lastDecision, reason: .reopen), via: .frontmost, problems: [])
     }
 }
 

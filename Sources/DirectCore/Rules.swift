@@ -59,23 +59,41 @@ public struct Rule: Sendable, Equatable {
     }
 }
 
+/// What happens to a link no rule matched.
+public enum Fallback: Sendable, Hashable {
+    case open(Target)
+    /// Show the picker.
+    case ask
+}
+
 /// Top-level rules are checked in order and the first match wins. Nothing matched means `fallback`.
 public struct RuleSet: Codable, Sendable, Equatable {
     public var rules: [Rule]
-    public var fallback: Target
+    public var fallback: Fallback
 
-    public init(rules: [Rule], fallback: Target) {
+    public init(rules: [Rule], fallback: Fallback) {
         self.rules = rules
         self.fallback = fallback
+    }
+
+    public init(rules: [Rule], fallback: Target) {
+        self.init(rules: rules, fallback: .open(fallback))
     }
 }
 
 public struct Decision: Sendable, Equatable {
-    public var target: Target
+    /// nil when no rule matched and the fallback is to ask.
+    public var target: Target?
     /// Names from the top-level rule down to the exception that decided. Empty means fallback.
     public var rulePath: [String]
     /// The same path as positions: [2, 0] is the first exception of the third rule.
     public var ruleIndices: [Int]
+
+    public init(target: Target?, rulePath: [String], ruleIndices: [Int]) {
+        self.target = target
+        self.rulePath = rulePath
+        self.ruleIndices = ruleIndices
+    }
 }
 
 extension RuleSet {
@@ -83,7 +101,28 @@ extension RuleSet {
         for (index, rule) in rules.enumerated() {
             if let decision = rule.route(link, names: [], indices: [index]) { return decision }
         }
-        return Decision(target: fallback, rulePath: [], ruleIndices: [])
+        switch fallback {
+        case let .open(target): return Decision(target: target, rulePath: [], ruleIndices: [])
+        case .ask: return Decision(target: nil, rulePath: [], ruleIndices: [])
+        }
+    }
+
+    /// Points the rule or exception at `indices` (as in `Decision.ruleIndices`) to a new target.
+    @discardableResult
+    public mutating func setTarget(_ target: Target, forRuleAt indices: [Int]) -> Bool {
+        guard let first = indices.first, rules.indices.contains(first) else { return false }
+        return rules[first].setTarget(target, at: indices.dropFirst())
+    }
+}
+
+extension Rule {
+    mutating func setTarget(_ target: Target, at rest: ArraySlice<Int>) -> Bool {
+        guard let next = rest.first else {
+            open = target
+            return true
+        }
+        guard except.indices.contains(next) else { return false }
+        return except[next].setTarget(target, at: rest.dropFirst())
     }
 }
 

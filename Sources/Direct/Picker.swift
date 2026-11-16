@@ -90,11 +90,19 @@ extension Ingredient {
 struct PickerView: View {
     @Bindable var model: PickerModel
     var onPick: (Int) -> Void
+    var onCancel: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.caption).foregroundStyle(.secondary)
+                HStack {
+                    Text(title).font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button(action: onCancel) { Image(systemName: "xmark.circle.fill") }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.secondary)
+                        .help("Close without opening (esc)")
+                }
                 Text(model.request.link.url.absoluteString)
                     .font(.callout)
                     .lineLimit(2)
@@ -230,6 +238,8 @@ private struct FlowLayout: Layout {
 }
 
 /// A floating panel near the mouse that takes keyboard focus without activating Direct.
+/// It stays up when another app takes focus, so a link is never dropped by a focus race:
+/// only a pick, esc, or the close button ends it.
 @MainActor
 final class PickerController {
     private var panel: PickerPanel?
@@ -241,7 +251,8 @@ final class PickerController {
         let model = PickerModel(request: request, options: options)
         let view = PickerView(
             model: model,
-            onPick: { [weak self, weak model] index in self?.finish(model?.choice(at: index)) }
+            onPick: { [weak self, weak model] index in self?.finish(model?.choice(at: index)) },
+            onCancel: { [weak self] in self?.finish(nil) }
         )
         let host = NSHostingController(rootView: view)
         host.sizingOptions = [.preferredContentSize]
@@ -260,7 +271,6 @@ final class PickerController {
         panel.contentViewController = host
         panel.setContentSize(host.view.fittingSize)
         panel.setFrameTopLeftPoint(Self.topLeft(for: panel.frame.size))
-        panel.onResignKey = { [weak self] in self?.finish(nil) }
 
         self.panel = panel
         self.completion = completion
@@ -291,7 +301,6 @@ final class PickerController {
         self.completion = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor) }
         keyMonitor = nil
-        panel?.onResignKey = nil
         panel?.orderOut(nil)
         panel = nil
         completion(choice)
@@ -308,10 +317,5 @@ final class PickerController {
 }
 
 final class PickerPanel: NSPanel {
-    var onResignKey: (() -> Void)?
     override var canBecomeKey: Bool { true }
-    override func resignKey() {
-        super.resignKey()
-        onResignKey?()
-    }
 }

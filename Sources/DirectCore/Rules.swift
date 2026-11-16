@@ -42,20 +42,35 @@ public enum Condition: Sendable, Equatable {
 }
 
 /// All conditions must match. Exceptions are only checked when the rule itself matches,
-/// so they inherit the parent's conditions, and a matching exception overrides the parent.
+/// so they inherit the parent's conditions; the first matching exception overrides the parent.
 public struct Rule: Sendable, Equatable {
     public var name: String
     public var enabled: Bool
     public var when: [Condition]
     public var open: Target
-    public var except: [Rule]
+    public var except: [Exception]
 
-    public init(name: String, enabled: Bool = true, when: [Condition], open: Target, except: [Rule] = []) {
+    public init(name: String, enabled: Bool = true, when: [Condition], open: Target, except: [Exception] = []) {
         self.name = name
         self.enabled = enabled
         self.when = when
         self.open = open
         self.except = except
+    }
+}
+
+/// One level only: an exception has no exceptions of its own, by construction.
+public struct Exception: Sendable, Equatable {
+    public var name: String
+    public var enabled: Bool
+    public var when: [Condition]
+    public var open: Target
+
+    public init(name: String, enabled: Bool = true, when: [Condition], open: Target) {
+        self.name = name
+        self.enabled = enabled
+        self.when = when
+        self.open = open
     }
 }
 
@@ -110,30 +125,25 @@ extension RuleSet {
     /// Points the rule or exception at `indices` (as in `Decision.ruleIndices`) to a new target.
     @discardableResult
     public mutating func setTarget(_ target: Target, forRuleAt indices: [Int]) -> Bool {
-        guard let first = indices.first, rules.indices.contains(first) else { return false }
-        return rules[first].setTarget(target, at: indices.dropFirst())
-    }
-}
-
-extension Rule {
-    mutating func setTarget(_ target: Target, at rest: ArraySlice<Int>) -> Bool {
-        guard let next = rest.first else {
-            open = target
+        guard let rule = indices.first, rules.indices.contains(rule), indices.count <= 2 else { return false }
+        guard indices.count == 2 else {
+            rules[rule].open = target
             return true
         }
-        guard except.indices.contains(next) else { return false }
-        return except[next].setTarget(target, at: rest.dropFirst())
+        guard rules[rule].except.indices.contains(indices[1]) else { return false }
+        rules[rule].except[indices[1]].open = target
+        return true
     }
 }
 
 extension Rule {
     func route(_ link: Link, names: [String], indices: [Int]) -> Decision? {
         guard enabled, when.allSatisfy({ $0.matches(link) }) else { return nil }
-        let names = names + [name]
-        for (index, exception) in except.enumerated() {
-            if let decision = exception.route(link, names: names, indices: indices + [index]) { return decision }
+        for (index, exception) in except.enumerated()
+        where exception.enabled && exception.when.allSatisfy({ $0.matches(link) }) {
+            return Decision(target: exception.open, rulePath: names + [name, exception.name], ruleIndices: indices + [index])
         }
-        return Decision(target: open, rulePath: names, ruleIndices: indices)
+        return Decision(target: open, rulePath: names + [name], ruleIndices: indices)
     }
 }
 

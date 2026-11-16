@@ -134,7 +134,20 @@ public struct RuleDraft: Identifiable, Equatable, Sendable {
         exceptions = rule.except.map(RuleDraft.init)
     }
 
+    /// Drafts double as exception drafts; their own `exceptions` stay empty.
+    public init(_ exception: Exception) {
+        name = exception.name
+        enabled = exception.enabled
+        conditions = exception.when.map(ConditionDraft.init)
+        target = exception.open
+        exceptions = []
+    }
+
     public var rule: Rule {
-        Rule(name: name, enabled: enabled, when: conditions.map(\.condition), open: target, except: exceptions.map(\.rule))
+        Rule(name: name, enabled: enabled, when: conditions.map(\.condition), open: target, except: exceptions.map(\.exception))
+    }
+
+    public var exception: Exception {
+        Exception(name: name, enabled: enabled, when: conditions.map(\.condition), open: target)
     }
 }

@@ -48,7 +48,7 @@ private func link(_ url: String, from app: String? = nil) -> Link {
         .path("/p", .startsWith, caseSensitive: true), .url("q", .endsWith, caseSensitive: false),
         .url("z", .exactly, caseSensitive: true), .app(["one", "two"]),
     ], open: Target(browser: "x", profile: "Profile 1"), except: [
-        Rule(name: "e", when: [.host("d.com", .domain)], open: Target(browser: "y")),
+        Exception(name: "e", when: [.host("d.com", .domain)], open: Target(browser: "y")),
     ])
     #expect(RuleDraft(rule).rule == rule)
 }
@@ -57,7 +57,7 @@ private func link(_ url: String, from app: String? = nil) -> Link {
     let set = RuleSet(rules: [
         Rule(name: "same", when: [.host("a.com", .domain)], open: Target(browser: "1")),
         Rule(name: "same", when: [.host("b.com", .domain)], open: Target(browser: "2"), except: [
-            Rule(name: "x", when: [.path("/x", .startsWith, caseSensitive: false)], open: Target(browser: "3")),
+            Exception(name: "x", when: [.path("/x", .startsWith, caseSensitive: false)], open: Target(browser: "3")),
         ]),
     ], fallback: Target(browser: "f"))
     #expect(set.route(link("https://b.com/y")).ruleIndices == [1])

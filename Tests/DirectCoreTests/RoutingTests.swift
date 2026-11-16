@@ -15,7 +15,7 @@ private func link(_ url: String, from app: String? = nil) -> Link {
 private let slackRules = RuleSet(
     rules: [
         Rule(name: "Slack goes to Work", when: [.app([slack])], open: work, except: [
-            Rule(name: "GitHub stays personal", when: [.host("github.com", .domain)], open: personal),
+            Exception(name: "GitHub stays personal", when: [.host("github.com", .domain)], open: personal),
         ]),
     ],
     fallback: safari

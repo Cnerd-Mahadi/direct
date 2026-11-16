@@ -34,7 +34,7 @@ import Testing
             .host("x.com", .exactly), .path("/p", .startsWith, caseSensitive: true),
             .url("q", .endsWith, caseSensitive: false), .app(["one", "two"]),
         ], open: Target(browser: "b", profile: "Profile 1"),
-             except: [Rule(name: "b", when: [], open: Target(browser: "c"))]),
+             except: [Exception(name: "b", when: [], open: Target(browser: "c"))]),
     ], fallback: Target(browser: "com.apple.Safari"))
     #expect(try JSONDecoder().decode(RuleSet.self, from: set.encoded()) == set)
 }
@@ -59,4 +59,13 @@ import Testing
     let file = URL(filePath: #filePath).deletingLastPathComponent().appending(path: "../../Support/rules.example.json")
     let set = try RuleSet.load(from: file)
     #expect(set.route(Link(url: URL(string: "https://x.com")!, sourceApp: "com.microsoft.teams2")).rulePath == ["Teams goes to Work"])
+}
+
+@Test func exceptionInsideExceptionIsRejectedWithAClearMessage() {
+    let json = """
+    { "fallback": "ask", "rules": [ { "name": "a", "when": [], "open": { "browser": "b" },
+      "except": [ { "name": "e", "when": [], "open": { "browser": "c" },
+                    "except": [ { "name": "deeper", "when": [], "open": { "browser": "d" } } ] } ] } ] }
+    """
+    #expect(throws: DecodingError.self) { try JSONDecoder().decode(RuleSet.self, from: Data(json.utf8)) }
 }

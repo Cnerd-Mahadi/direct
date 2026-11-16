@@ -49,7 +49,7 @@ private let personal = Target(browser: "com.brave.Browser", profile: "Profile 13
 @Test func fixingTheRuleRetargetsExactlyTheOneThatDecided() {
     var set = RuleSet(rules: [
         Rule(name: "slack", when: [.app(["s"])], open: work, except: [
-            Rule(name: "gh", when: [.host("github.com", .domain)], open: work),
+            Exception(name: "gh", when: [.host("github.com", .domain)], open: work),
         ]),
     ], fallback: personal)
     let decision = set.route(link("https://github.com/x", from: "s"))

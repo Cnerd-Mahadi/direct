@@ -50,7 +50,7 @@ extension Rule: Codable {
             enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true,
             when: try c.decodeIfPresent([Condition].self, forKey: .when) ?? [],
             open: try c.decode(Target.self, forKey: .open),
-            except: try c.decodeIfPresent([Rule].self, forKey: .except) ?? []
+            except: try c.decodeIfPresent([Exception].self, forKey: .except) ?? []
         )
     }
 
@@ -61,6 +61,32 @@ extension Rule: Codable {
         try c.encode(when, forKey: .when)
         try c.encode(open, forKey: .open)
         if !except.isEmpty { try c.encode(except, forKey: .except) }
+    }
+}
+
+extension Exception: Codable {
+    private enum Key: String, CodingKey { case name, enabled, when, open, except }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: Key.self)
+        guard !c.contains(.except) else {
+            throw DecodingError.dataCorruptedError(forKey: .except, in: c,
+                debugDescription: "An exception can't have exceptions of its own. Make it a separate rule higher in the list.")
+        }
+        self.init(
+            name: try c.decode(String.self, forKey: .name),
+            enabled: try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? true,
+            when: try c.decodeIfPresent([Condition].self, forKey: .when) ?? [],
+            open: try c.decode(Target.self, forKey: .open)
+        )
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: Key.self)
+        try c.encode(name, forKey: .name)
+        if !enabled { try c.encode(enabled, forKey: .enabled) }
+        try c.encode(when, forKey: .when)
+        try c.encode(open, forKey: .open)
     }
 }
 

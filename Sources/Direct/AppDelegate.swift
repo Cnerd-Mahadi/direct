@@ -10,23 +10,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Last app other than Direct to come to the front. Used when the event's sender is unknown.
     private var lastOtherApp: String?
     private var statusItem: NSStatusItem?
-    private var rulesWindow: NSWindow?
+    private var hubWindow: NSWindow?
     private let store = RulesStore()
+    private lazy var prefs = BrowserPrefs()
     private let picker = PickerController()
     private let toast = ToastController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.mainMenu = Self.makeMainMenu()
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        item.button?.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Direct")
+        item.button?.image = DirectMark.menuBarImage()
         let menu = NSMenu()
-        menu.addItem(withTitle: "Rules…", action: #selector(showRules), keyEquivalent: ",")
         let reopen = menu.addItem(withTitle: "Reopen Last Link…", action: #selector(reopenLastLink), keyEquivalent: "d")
         reopen.keyEquivalentModifierMask = [.control, .option]
         let registered = HotKey.register(id: 1, keyCode: kVK_ANSI_D, modifiers: controlKey | optionKey) { [weak self] in
             self?.reopenLastLink()
         }
         if !registered { reopen.title = "Reopen Last Link… (⌃⌥D is taken by another app)" }
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Open Direct…", action: #selector(showHub), keyEquivalent: ",")
         menu.addItem(withTitle: "Show Activity Log in Finder", action: #selector(showActivityLog), keyEquivalent: "")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit Direct", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
@@ -34,27 +36,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = item
     }
 
-    /// Launching Direct.app again while it runs opens the rules window.
+    /// Launching Direct.app again while it runs opens its window.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showRules()
+        showHub()
         return false
     }
 
-    @objc func showRules() {
+    @objc func showHub() {
         store.load()
-        if rulesWindow == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: RulesView(store: store)))
+        if hubWindow == nil {
+            let root = HubView(store: store, prefs: prefs) { [weak self] entry in self?.reopen(entry) }
+            let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "Direct"
-            window.setContentSize(NSSize(width: 900, height: 600))
+            window.styleMask.insert(.fullSizeContentView)
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isMovableByWindowBackground = true
+            window.setContentSize(NSSize(width: 1120, height: 760))
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
-            rulesWindow = window
+            hubWindow = window
         }
         // A Dock icon and ⌘-Tab while the window is open, so it can't get lost behind other apps.
         NSApp.setActivationPolicy(.regular)
         NSApp.activate()
-        rulesWindow?.makeKeyAndOrderFront(nil)
+        hubWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func showActivityLog() {
@@ -84,6 +91,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
+        Theme.registerFonts()
         NSAppleEventManager.shared().setEventHandler(
             self,
             andSelector: #selector(handleGetURL(_:withReply:)),
@@ -148,23 +156,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Reopens the last link Direct opened, judged against the rules as they are now.
     @objc private func reopenLastLink() {
-        guard let last = ActivityLog.lastOpened(), let url = URL(string: last.url) else {
+        guard let last = ActivityLog.lastOpened() else {
             DebugLog.write("reopen found no last opened link")
             NSSound.beep()
             return
         }
-        let link = DirectCore.Link(url: url, sourceApp: last.sourceApp)
+        reopen(last)
+    }
+
+    /// Offers an earlier link in the picker again, so it can go somewhere else.
+    private func reopen(_ entry: ActivityEntry) {
+        guard let url = URL(string: entry.url) else { return NSSound.beep() }
+        let link = DirectCore.Link(url: url, sourceApp: entry.sourceApp)
         let (rules, problems) = loadRules()
-        let request = PickerRequest(link: link, decision: rules.route(link), openedIn: last.target, reason: .reopen)
-        showPicker(request, via: last.sourceVia, problems: problems)
+        let request = PickerRequest(link: link, decision: rules.route(link), openedIn: entry.target, reason: .reopen)
+        showPicker(request, via: entry.sourceVia, problems: problems)
     }
 
     private func showPicker(_ request: PickerRequest, via: ActivityEntry.SourceVia, problems: [String]) {
-        picker.show(request, options: Catalog.targets()) { [weak self] choice in
+        let all = Catalog.targets()
+        picker.show(request, options: prefs.arrange(all).shown, all: all) { [weak self] choice in
             guard let self else { return }
             guard let choice else {
                 ActivityLog.append(ActivityEntry(url: request.link.url.absoluteString, sourceApp: request.link.sourceApp,
                                                  sourceVia: via, rule: [], target: nil, picked: true,
+                                                 reopened: request.reason == .reopen ? true : nil,
                                                  error: "Picker closed without choosing"))
                 return
             }
@@ -175,7 +191,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } catch {
                 problems.append("Could not save the rule: \(error)")
             }
-            self.open(request.link, in: choice.target, rulePath: rulePath, via: via, picked: true, problems: problems)
+            self.open(request.link, in: choice.target, rulePath: rulePath, via: via, picked: true,
+                      reopened: request.reason == .reopen, problems: problems)
         }
     }
 
@@ -189,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
             rules = RuleSet(rules: [], fallback: .ask)
         }
-        let label = Catalog.label(for: choice.target, in: Catalog.targets())
+        let name = Catalog.title(for: choice.target, in: Catalog.targets())
         let message: String
         switch choice.save {
         case .nothing:
@@ -197,12 +214,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case let .alwaysForSite(site):
             switch rules.alwaysOpen(host: site, in: choice.target, for: link) {
             case .nothing:
-                toast.show("\(site) already opens in \(label). Nothing to change.", near: picker.lastTopLeft, undo: nil)
+                toast.show("\(site) already opens in \(name)", near: picker.lastTopLeft, undo: nil)
                 return rules.route(link).rulePath
-            case .addedRule, .addedException:
-                message = "Saved: \(site) → \(label)"
-            case .retargetedRule, .retargetedException:
-                message = "Updated: \(site) → \(label)"
+            case .addedRule, .addedException, .retargetedRule, .retargetedException:
+                message = "\(site) will always open in \(name)"
             }
         case let .custom(draft, exceptionOf):
             if let rule = exceptionOf, rules.rules.indices.contains(rule) {
@@ -210,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 rules.rules.insert(draft.rule, at: 0)
             }
-            message = "Saved: \(draft.name) → \(label)"
+            message = "Saved. Links like this now open in \(name)"
         }
         try write(rules)
         toast.show(message, near: picker.lastTopLeft) { [weak self] in self?.restore(previous) }
@@ -220,7 +235,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func write(_ rules: RuleSet) throws {
         try FileManager.default.createDirectory(at: Paths.rules.deletingLastPathComponent(), withIntermediateDirectories: true)
         try rules.encoded().write(to: Paths.rules, options: .atomic)
-        if rulesWindow?.isVisible == true { store.load() }
+        if hubWindow?.isVisible == true { store.load() }
     }
 
     private func restore(_ previous: Data?) {
@@ -229,11 +244,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             try? FileManager.default.removeItem(at: Paths.rules)
         }
-        if rulesWindow?.isVisible == true { store.load() }
+        if hubWindow?.isVisible == true { store.load() }
     }
 
     private func open(_ link: DirectCore.Link, in target: Target, rulePath: [String], via: ActivityEntry.SourceVia,
-                      picked: Bool, problems: [String]) {
+                      picked: Bool, reopened: Bool = false, problems: [String]) {
         Task {
             var problems = problems
             var method: OpenMethod?
@@ -251,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 target: target,
                 method: method,
                 picked: picked ? true : nil,
+                reopened: reopened ? true : nil,
                 error: problems.isEmpty ? nil : problems.joined(separator: " | ")
             ))
         }

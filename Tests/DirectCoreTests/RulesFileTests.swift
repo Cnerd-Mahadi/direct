@@ -50,6 +50,12 @@ import Testing
     #expect(profiles == [.init(directory: "Profile 2", name: "Me"), .init(directory: "Profile 14", name: "Work")])
 }
 
+@Test func profileColorComesFromTheBrowsersSignedColorSeed() throws {
+    let json = #"{ "profile": { "info_cache": { "Profile 14": { "name": "Work", "profile_color_seed": -14244198 } } } }"#
+    let profiles = try Chromium.profiles(localState: Data(json.utf8))
+    #expect(profiles.first?.color == 0x26A69A)
+}
+
 @Test func singletonMessageMatchesChromiumWireFormat() {
     let data = Chromium.singletonMessage(executable: "/B", profile: "Profile 14", url: URL(string: "https://a.com/x?y=1")!)
     #expect(String(decoding: data, as: UTF8.self) == "START\0/\0/B\0--profile-directory=Profile 14\0https://a.com/x?y=1")

@@ -26,7 +26,12 @@ struct ActivityEntry: Codable {
     var method: OpenMethod?
     /// True when the person chose in the picker rather than a rule deciding.
     var picked: Bool?
+    /// True when this open came from reopening an earlier link (⌃⌥D or Reopen on Home).
+    var reopened: Bool?
     var error: String?
+
+    /// A link that actually opened somewhere, as opposed to a cancelled picker.
+    var opened: Bool { target != nil && method != nil }
 }
 
 enum ActivityLog {
@@ -50,17 +55,34 @@ enum ActivityLog {
 }
 
 extension ActivityLog {
-    /// The most recent link Direct actually opened, so reopening survives a restart.
-    static func lastOpened() -> ActivityEntry? {
-        guard let data = try? Data(contentsOf: Paths.activityLog) else { return nil }
+    /// Every entry, newest first.
+    static func entries() -> [ActivityEntry] {
+        guard let data = try? Data(contentsOf: Paths.activityLog) else { return [] }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        for line in data.split(separator: 0x0A).reversed() {
-            if let entry = try? decoder.decode(ActivityEntry.self, from: Data(line)), entry.target != nil, entry.method != nil {
-                return entry
-            }
+        return data.split(separator: 0x0A).reversed().compactMap { try? decoder.decode(ActivityEntry.self, from: Data($0)) }
+    }
+
+    /// The most recent link Direct actually opened, so reopening survives a restart.
+    static func lastOpened() -> ActivityEntry? {
+        entries().first(where: \.opened)
+    }
+}
+
+/// What Home shows: counts for this month and the latest opened links.
+struct ActivitySummary {
+    var opened = 0
+    var picked = 0
+    var reopened = 0
+    var recent: [ActivityEntry] = []
+
+    init(_ entries: [ActivityEntry], now: Date = Date(), recentCount: Int = 8) {
+        let monthStart = Calendar.current.dateInterval(of: .month, for: now)?.start ?? now
+        for entry in entries where entry.opened && entry.time >= monthStart {
+            opened += 1
+            if entry.reopened == true { reopened += 1 } else if entry.picked == true { picked += 1 }
         }
-        return nil
+        recent = Array(entries.lazy.filter(\.opened).prefix(recentCount))
     }
 }
 

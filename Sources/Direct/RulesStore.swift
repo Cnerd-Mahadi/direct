@@ -23,7 +23,7 @@ final class RulesStore {
         defer { loading = false }
         do {
             let set = try RuleSet.load(from: Paths.rules)
-            rules = set.rules.map(RuleDraft.init)
+            rules = Self.keepingIDs(of: rules, for: set.rules)
             fallback = set.fallback
             loadError = nil
         } catch let error as CocoaError where error.code == .fileReadNoSuchFile {
@@ -31,6 +31,18 @@ final class RulesStore {
             loadError = nil
         } catch {
             loadError = Self.describe(error)
+        }
+    }
+
+    /// Reloading gives unchanged rules their old ids, so a rule open in the editor is still found on Save.
+    private static func keepingIDs(of old: [RuleDraft], for rules: [Rule]) -> [RuleDraft] {
+        var unused = old
+        return rules.map { rule in
+            var draft = RuleDraft(rule)
+            if let match = unused.firstIndex(where: { $0.rule == rule }) {
+                draft.id = unused.remove(at: match).id
+            }
+            return draft
         }
     }
 

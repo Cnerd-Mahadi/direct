@@ -15,13 +15,11 @@ final class ToastController {
         } })
         let host = NSHostingController(rootView: view)
         host.sizingOptions = []
-        let panel = NSPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
-                            backing: .buffered, defer: false)
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            panel.standardWindowButton(button)?.isHidden = true
-        }
+        let panel = NSPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.appearance = NSAppearance(named: .darkAqua)
         panel.level = .floating
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
@@ -31,7 +29,7 @@ final class ToastController {
         panel.orderFrontRegardless()
         self.panel = panel
         hideTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(6))
+            try? await Task.sleep(for: .seconds(8))
             if !Task.isCancelled { self?.hide() }
         }
     }
@@ -49,15 +47,27 @@ private struct ToastView: View {
     var onUndo: (() -> Void)?
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-            Text(message).fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: 12) {
+            Image(systemName: "checkmark").font(.system(size: 10, weight: .heavy))
+                .foregroundStyle(.white)
+                .frame(width: 20, height: 20)
+                .background(Theme.good, in: Circle())
+            Text(message).font(Theme.ui(13)).foregroundStyle(Theme.HUD.text).lineLimit(2)
             if let onUndo {
-                Button("Undo", action: onUndo)
+                Button(action: onUndo) {
+                    Text("Undo").font(Theme.ui(13, .semibold)).foregroundStyle(Theme.HUD.link)
+                        .padding(.horizontal, 14)
+                        .frame(height: 30)
+                        .background(Theme.HUD.tile, in: Capsule())
+                }
+                .buttonStyle(.plain)
             }
         }
-        .padding(12)
-        .frame(width: 420, alignment: .leading)
-        .fixedSize(horizontal: false, vertical: true)
+        .padding(.leading, 14)
+        .padding(.trailing, onUndo == nil ? 16 : 7)
+        .frame(height: 44)
+        .background(Theme.HUD.background, in: Capsule())
+        .overlay(Capsule().strokeBorder(Theme.HUD.line, lineWidth: 1))
+        .fixedSize()
     }
 }

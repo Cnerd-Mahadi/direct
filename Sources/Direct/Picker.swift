@@ -86,131 +86,183 @@ struct PickerView: View {
     var onResize: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             header
             if model.mode == .custom {
                 customEditor
             } else {
-                browserList
-                Divider()
-                saveOptions
+                tiles
+                footer
             }
         }
-        .padding(14)
-        .frame(width: model.mode == .custom ? 560 : 400)
+        .padding(EdgeInsets(top: 16, leading: 12, bottom: 12, trailing: 12))
+        .frame(width: model.mode == .custom ? 640 : width)
         .fixedSize(horizontal: false, vertical: true)
+        .background(Theme.HUD.background, in: RoundedRectangle(cornerRadius: 22))
+        .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Theme.HUD.line, lineWidth: 1))
+        .foregroundStyle(Theme.HUD.text)
+        .font(Theme.ui(13))
+        .environment(\.colorScheme, .dark)
         .onChange(of: model.mode) { onResize() }
     }
 
+    private static let columns = 6
+    private static let tileWidth: CGFloat = 116
+    private var width: CGFloat { CGFloat(max(4, min(model.options.count, Self.columns))) * (Self.tileWidth + 4) + 20 }
+
     private var header: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack {
-                Text(title).font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button { onChoose(nil) } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(.secondary)
-                    .help("Close without opening (esc)")
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 3) {
+                (Text(model.request.link.url.host() ?? "").fontWeight(.semibold)
+                    + Text(pathAndQuery).foregroundColor(Theme.HUD.secondary))
+                    .font(Theme.ui(14))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(context).font(Theme.ui(12)).foregroundStyle(Theme.HUD.secondary).lineLimit(1)
             }
-            Text(model.request.link.url.absoluteString)
-                .font(.callout)
-                .lineLimit(2)
-                .truncationMode(.middle)
-            Text(context).font(.caption).foregroundStyle(.secondary)
+            Spacer(minLength: 12)
+            Button { onChoose(nil) } label: {
+                Image(systemName: "xmark").font(.system(size: 10, weight: .bold))
+                    .frame(width: 24, height: 24)
+                    .background(Theme.HUD.chip, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Close without opening (esc)")
+            .accessibilityLabel("Close without opening")
         }
+        .padding(.horizontal, 8)
     }
 
-    private var browserList: some View {
-        VStack(spacing: 2) {
+    private var tiles: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(Self.tileWidth), spacing: 4), count: min(max(model.options.count, 1), Self.columns)),
+                  spacing: 4) {
             ForEach(Array(model.options.enumerated()), id: \.element.id) { index, option in
                 Button { onChoose(model.choice(at: index)) } label: {
-                    HStack(spacing: 8) {
-                        Text(index < 9 ? "\(index + 1)" : " ")
-                            .font(.callout.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                            .frame(width: 14)
-                        if let icon = Catalog.icon(option.target.browser) {
-                            Image(nsImage: icon).resizable().frame(width: 18, height: 18)
-                        }
-                        Text(option.label)
-                        Spacer()
-                        if let tag = tag(for: option.target) {
-                            Text(tag).font(.caption).foregroundStyle(.secondary)
+                    VStack(spacing: 7) {
+                        TargetIcon(option, size: 48, ring: Color(hex: index == model.highlighted ? 0x2A2A2A : 0x161616))
+                        Text(option.title)
+                            .font(Theme.ui(12, index == model.highlighted ? .semibold : .medium))
+                            .foregroundStyle(index == model.highlighted ? Theme.HUD.text : Theme.HUD.secondary)
+                            .lineLimit(1)
+                        Circle().fill(Theme.HUD.secondary).frame(width: 4, height: 4)
+                            .opacity(option.target == model.request.openedIn ? 1 : 0)
+                    }
+                    .padding(EdgeInsets(top: 12, leading: 4, bottom: 6, trailing: 4))
+                    .frame(width: Self.tileWidth)
+                    .background(index == model.highlighted ? Theme.HUD.tile : .clear, in: RoundedRectangle(cornerRadius: 14))
+                    .overlay(alignment: .topLeading) {
+                        if index < 9 {
+                            Text("\(index + 1)").font(Theme.ui(11, .semibold)).foregroundStyle(Theme.HUD.secondary).padding(.leading, 8).padding(.top, 6)
                         }
                     }
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 5)
-                    .contentShape(Rectangle())
-                    .background(index == model.highlighted ? Color.accentColor.opacity(0.25) : .clear,
-                                in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(RoundedRectangle(cornerRadius: 14))
                 }
                 .buttonStyle(.plain)
+                .help(tip(for: option))
             }
         }
     }
 
-    private var saveOptions: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Picker("", selection: $model.mode) {
-                Text("Just this once").tag(PickerModel.Mode.once)
-                Text("Always use this for \(model.site)").tag(PickerModel.Mode.always)
+    private var footer: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 0) {
+                segment("Just this once", .once)
+                segment("Always for \(model.site)", .always)
             }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
-            HStack {
-                Button("More…") { model.mode = .custom }.buttonStyle(.link)
-                Spacer()
-                Text("1–9 to open · ↑↓ ↩ · esc").font(.caption2).foregroundStyle(.tertiary)
-            }
+            .padding(3)
+            .background(Theme.HUD.chip, in: Capsule())
+            Spacer()
+            Button("More options") { model.mode = .custom }
+                .buttonStyle(.plain)
+                .font(Theme.ui(12, .semibold))
+                .foregroundStyle(Theme.HUD.link)
         }
+        .padding(.horizontal, 4)
+    }
+
+    private func segment(_ title: String, _ mode: PickerModel.Mode) -> some View {
+        Button { model.mode = mode } label: {
+            Text(title)
+                .font(Theme.ui(12, .semibold))
+                .lineLimit(1)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .foregroundStyle(model.mode == mode ? Color(hex: 0x161616) : Theme.HUD.secondary)
+                .background(model.mode == mode ? Theme.HUD.text : .clear, in: Capsule())
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(model.mode == mode ? .isSelected : [])
     }
 
     private var customEditor: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Open links that match").font(.caption).foregroundStyle(.secondary)
-            ConditionList(conditions: $model.draft.conditions, showMore: true)
-            HStack {
-                Text("in")
-                TargetPicker(target: $model.draft.target, targets: targets)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 10) {
+                Text("Open in")
+                TargetMenu(target: $model.draft.target, targets: targets)
+                Text("when")
             }
+            .font(Theme.ui(14))
+            ConditionList(conditions: $model.draft.conditions)
             if let fired = model.firedRule {
                 Picker("", selection: $model.addAsException) {
-                    Text("As an exception to “\(fired.name)”").tag(true)
-                    Text("As a new rule at the top").tag(false)
+                    Text("An exception to “\(fired.name)”, so only links that rule catches change").tag(true)
+                    Text("A new rule at the top, checked before every other rule").tag(false)
                 }
                 .pickerStyle(.radioGroup)
                 .labelsHidden()
+                .font(Theme.ui(13))
             }
-            HStack {
-                Button("Back") { model.mode = .once }
+            HStack(spacing: 8) {
                 Spacer()
-                Button("Save and Open") { onChoose(model.customChoice()) }
+                Button("Back") { model.mode = .once }.buttonStyle(QuietButtonStyle(fill: Theme.HUD.chip))
+                Button("Save and open") { onChoose(model.customChoice()) }
+                    .buttonStyle(HUDAccentButtonStyle())
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.draft.conditions.isEmpty)
             }
         }
+        .padding(.horizontal, 6)
     }
 
-    private var title: String {
-        switch model.request.reason {
-        case .noRuleMatched: "No rule matched. Open in:"
-        case .modifierHeld: "Open in:"
-        case .reopen: "Reopen in:"
-        }
+    private var pathAndQuery: String {
+        let url = model.request.link.url
+        let path = url.path(percentEncoded: false)
+        return (path == "/" ? "" : path) + (url.query().map { "?" + $0 } ?? "")
     }
 
     private var context: String {
-        let source = model.request.link.sourceApp.map { "from " + (Catalog.appName($0) ?? $0) }
-        let rule = model.request.decision.rulePath.isEmpty
-            ? "no rule matched"
-            : "rule “\(model.request.decision.rulePath.joined(separator: " › "))”"
-        return [source, rule].compactMap { $0 }.joined(separator: " · ")
+        let source = model.request.link.sourceApp.map { "From " + (Catalog.appName($0) ?? $0) + ". " } ?? ""
+        let rule = model.request.decision.rulePath.first
+        let ruleTarget = model.request.decision.target.map { Catalog.title(for: $0, in: targets) }
+        let detail: String = switch model.request.reason {
+        case .reopen:
+            "Opened in " + (model.request.openedIn.map { Catalog.title(for: $0, in: targets) } ?? "a browser")
+                + (rule.map { " by “\($0)”" } ?? "")
+        case .modifierHeld:
+            if let rule, let ruleTarget { "“\(rule)” would open it in \(ruleTarget)" } else { "No rule matches this link" }
+        case .noRuleMatched:
+            "No rule matches this link yet"
+        }
+        return source + detail
     }
 
-    private func tag(for target: Target) -> String? {
-        if target == model.request.openedIn { return "opened here" }
-        if target == model.request.decision.target { return "rule says" }
-        return nil
+    private func tip(for option: TargetOption) -> String {
+        if option.target == model.request.openedIn { return "\(option.label), where it opened last time" }
+        if option.target == model.request.decision.target { return "\(option.label), what your rules pick" }
+        return option.label
+    }
+}
+
+private struct HUDAccentButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.ui(13, .semibold))
+            .foregroundStyle(Color(hex: 0x1D1B16))
+            .padding(.horizontal, 16)
+            .frame(height: 32)
+            .background(Theme.HUD.accent, in: Capsule())
+            .opacity(configuration.isPressed ? 0.8 : 1)
     }
 }
 
@@ -224,10 +276,12 @@ final class PickerController {
     private var completion: ((PickerChoice?) -> Void)?
     private(set) var lastTopLeft: NSPoint?
 
-    func show(_ request: PickerRequest, options: [TargetOption], completion: @escaping (PickerChoice?) -> Void) {
+    /// `options` are the picker's tiles; `all` also covers hidden targets, for names and More options.
+    func show(_ request: PickerRequest, options: [TargetOption], all: [TargetOption],
+              completion: @escaping (PickerChoice?) -> Void) {
         finish(nil)
         let model = PickerModel(request: request, options: options)
-        let view = PickerView(model: model, targets: options,
+        let view = PickerView(model: model, targets: all,
                               onChoose: { [weak self] choice in self?.finish(choice) },
                               onResize: { [weak self] in self?.fitToContent() })
         // Sized by hand: letting the window follow the content's preferred size looped
@@ -235,13 +289,12 @@ final class PickerController {
         let host = NSHostingController(rootView: view)
         host.sizingOptions = []
 
-        let panel = PickerPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+        let panel = PickerPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .borderless],
                                 backing: .buffered, defer: false)
-        panel.titlebarAppearsTransparent = true
-        panel.titleVisibility = .hidden
-        for button in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
-            panel.standardWindowButton(button)?.isHidden = true
-        }
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.appearance = NSAppearance(named: .darkAqua)
         panel.isMovableByWindowBackground = true
         panel.level = .floating
         panel.hidesOnDeactivate = false
@@ -255,7 +308,7 @@ final class PickerController {
         self.panel = panel
         self.completion = completion
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self, weak model] event in
-            guard let self, let model else { return event }
+            guard let self, let model, event.window === self.panel else { return event }
             return self.handle(event, model: model) ? nil : event
         }
         panel.makeKeyAndOrderFront(nil)
@@ -270,8 +323,9 @@ final class PickerController {
         guard model.mode != .custom else { return false }
         switch event.keyCode {
         case 36, 76: finish(model.choice(at: model.highlighted))
-        case 125: model.move(1)
-        case 126: model.move(-1)
+        case 124, 125: model.move(1)
+        case 123, 126: model.move(-1)
+        case 48: model.mode = model.mode == .once ? .always : .once
         default:
             guard event.modifierFlags.intersection([.command, .control, .option]).isEmpty,
                   let digit = event.charactersIgnoringModifiers.flatMap(Int.init), (1...9).contains(digit),

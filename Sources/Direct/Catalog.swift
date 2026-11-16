@@ -1,10 +1,31 @@
 import AppKit
+import SwiftUI
 import DirectCore
 
 struct TargetOption: Identifiable, Hashable {
     var target: Target
-    var label: String
+    var appName: String
+    var profileName: String?
+    /// The profile's color from the browser, as 0xRRGGBB.
+    var profileColor: UInt32?
     var id: Target { target }
+
+    /// What people call it: the profile name for a profile, otherwise the app.
+    var title: String { profileName ?? appName }
+    /// One line for menus and messages.
+    var label: String { profileName.map { "\(appName) · \($0)" } ?? appName }
+    /// The last word's first letter, so "Mahbubur-Work" and "Mahbubur Rahman" get W and R.
+    var initial: String? {
+        profileName?.split(whereSeparator: { $0 == " " || $0 == "-" || $0 == "_" }).last?.first.map { String($0).uppercased() }
+    }
+    var badge: Color { Color(hex: profileColor ?? 0x8E897C) }
+
+    /// Dark text on light profile colors, white on dark ones.
+    var badgeText: Color {
+        let c = profileColor ?? 0x8E897C
+        let luma = 0.299 * Double((c >> 16) & 0xFF) + 0.587 * Double((c >> 8) & 0xFF) + 0.114 * Double(c & 0xFF)
+        return luma > 150 ? Color(hex: 0x10213F) : .white
+    }
 }
 
 struct AppOption: Identifiable, Hashable {
@@ -33,10 +54,11 @@ enum Catalog {
                 .flatMap { try? Data(contentsOf: $0.appending(path: "Local State")) }
                 .flatMap { try? Chromium.profiles(localState: $0) } ?? []
             if profiles.isEmpty {
-                options.append(TargetOption(target: Target(browser: id), label: name))
+                options.append(TargetOption(target: Target(browser: id), appName: name))
             } else {
                 options += profiles.map {
-                    TargetOption(target: Target(browser: id, profile: $0.directory), label: "\(name) · \($0.name)")
+                    TargetOption(target: Target(browser: id, profile: $0.directory), appName: name,
+                                 profileName: $0.name, profileColor: $0.color)
                 }
             }
         }
@@ -47,6 +69,10 @@ enum Catalog {
         if let option = options.first(where: { $0.target == target }) { return option.label }
         let app = appName(target.browser) ?? target.browser
         return [app, target.profile].compactMap { $0 }.joined(separator: " · ") + " (not found)"
+    }
+
+    static func title(for target: Target, in options: [TargetOption]) -> String {
+        options.first { $0.target == target }?.title ?? label(for: target, in: options)
     }
 
     static func runningApps() -> [AppOption] {
@@ -60,9 +86,15 @@ enum Catalog {
         NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map(displayName)
     }
 
+    /// Icons are drawn many times per screen, and looking one up hits the disk.
     static func icon(_ bundleID: String) -> NSImage? {
-        NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        if let cached = icons[bundleID] { return cached }
+        let icon = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID).map { NSWorkspace.shared.icon(forFile: $0.path) }
+        icons[bundleID] = icon
+        return icon
     }
+
+    private static var icons: [String: NSImage?] = [:]
 
     /// Asks the user to pick an app from /Applications and returns its bundle identifier.
     static func chooseApp() -> AppOption? {

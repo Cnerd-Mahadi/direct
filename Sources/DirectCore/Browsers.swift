@@ -22,17 +22,30 @@ public enum Chromium {
     public struct Profile: Sendable, Equatable {
         public var directory: String
         public var name: String
+        /// The color the person picked for this profile in the browser, as 0xRRGGBB.
+        public var color: UInt32?
+
+        public init(directory: String, name: String, color: UInt32? = nil) {
+            self.directory = directory
+            self.name = name
+            self.color = color
+        }
     }
 
-    /// Reads profile directories and display names from the browser's "Local State" file.
+    /// Reads profile directories, display names and colors from the browser's "Local State" file.
     public static func profiles(localState: Data) throws -> [Profile] {
         struct LocalState: Decodable {
             struct ProfileSection: Decodable { var info_cache: [String: Info] }
-            struct Info: Decodable { var name: String }
+            struct Info: Decodable {
+                var name: String
+                /// Signed ARGB, as Chromium stores it.
+                var profile_color_seed: Int64?
+            }
             var profile: ProfileSection
         }
         return try JSONDecoder().decode(LocalState.self, from: localState).profile.info_cache
-            .map { Profile(directory: $0.key, name: $0.value.name) }
+            .map { Profile(directory: $0.key, name: $0.value.name,
+                           color: $0.value.profile_color_seed.map { UInt32(truncatingIfNeeded: $0) & 0xFFFFFF }) }
             .sorted { $0.directory.localizedStandardCompare($1.directory) == .orderedAscending }
     }
 

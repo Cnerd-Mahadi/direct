@@ -149,6 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Reopens the last link Direct opened, judged against the rules as they are now.
     @objc private func reopenLastLink() {
         guard let last = ActivityLog.lastOpened(), let url = URL(string: last.url) else {
+            DebugLog.write("reopen found no last opened link")
             NSSound.beep()
             return
         }

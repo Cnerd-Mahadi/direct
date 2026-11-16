@@ -16,16 +16,19 @@ enum HotKey {
                 GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
                                   nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKeyID)
                 let id = hotKeyID.id
+                DebugLog.write("hotkey \(id) pressed")
                 MainActor.assumeIsolated { HotKey.actions[id]?() }
                 return noErr
             }, 1, &spec, nil, nil)
+            DebugLog.write("hotkey handler install status \(status)")
             guard status == noErr else { return false }
             handlerInstalled = true
         }
         var ref: EventHotKeyRef?
         let hotKeyID = EventHotKeyID(signature: OSType(0x4452_4354), id: id)
-        guard RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &ref) == noErr
-        else { return false }
+        let status = RegisterEventHotKey(UInt32(keyCode), UInt32(modifiers), hotKeyID, GetApplicationEventTarget(), 0, &ref)
+        DebugLog.write("hotkey \(id) register status \(status)")
+        guard status == noErr else { return false }
         actions[id] = action
         return true
     }

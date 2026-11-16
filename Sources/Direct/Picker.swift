@@ -83,6 +83,7 @@ struct PickerView: View {
     @Bindable var model: PickerModel
     var targets: [TargetOption]
     var onChoose: (PickerChoice?) -> Void
+    var onResize: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -97,6 +98,8 @@ struct PickerView: View {
         }
         .padding(14)
         .frame(width: model.mode == .custom ? 560 : 400)
+        .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: model.mode) { onResize() }
     }
 
     private var header: some View {
@@ -224,9 +227,13 @@ final class PickerController {
     func show(_ request: PickerRequest, options: [TargetOption], completion: @escaping (PickerChoice?) -> Void) {
         finish(nil)
         let model = PickerModel(request: request, options: options)
-        let view = PickerView(model: model, targets: options) { [weak self] choice in self?.finish(choice) }
+        let view = PickerView(model: model, targets: options,
+                              onChoose: { [weak self] choice in self?.finish(choice) },
+                              onResize: { [weak self] in self?.fitToContent() })
+        // Sized by hand: letting the window follow the content's preferred size looped
+        // between window and content layout until AppKit crashed the app.
         let host = NSHostingController(rootView: view)
-        host.sizingOptions = [.preferredContentSize]
+        host.sizingOptions = []
 
         let panel = PickerPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
                                 backing: .buffered, defer: false)
@@ -240,7 +247,7 @@ final class PickerController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.contentViewController = host
-        panel.setContentSize(host.view.fittingSize)
+        panel.setContentSize(Self.measure(host))
         let topLeft = Self.topLeft(for: panel.frame.size)
         panel.setFrameTopLeftPoint(topLeft)
         lastTopLeft = topLeft
@@ -272,6 +279,22 @@ final class PickerController {
             finish(model.choice(at: digit - 1))
         }
         return true
+    }
+
+    /// Re-measures after the content changed shape, keeping the top-left corner in place.
+    private func fitToContent() {
+        DispatchQueue.main.async { [weak self] in
+            guard let panel = self?.panel, let host = panel.contentViewController as? NSHostingController<PickerView>
+            else { return }
+            let top = NSPoint(x: panel.frame.minX, y: panel.frame.maxY)
+            panel.setContentSize(Self.measure(host))
+            panel.setFrameTopLeftPoint(top)
+        }
+    }
+
+    /// The size SwiftUI wants; the view fixes its own width and height.
+    private static func measure<Content: View>(_ host: NSHostingController<Content>) -> NSSize {
+        host.sizeThatFits(in: NSSize(width: 10_000, height: 10_000))
     }
 
     private func finish(_ choice: PickerChoice?) {

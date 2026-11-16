@@ -63,3 +63,18 @@ extension ActivityLog {
         return nil
     }
 }
+
+/// Plain-text diagnostics in ~/Library/Logs/Direct/debug.log, for things the activity log doesn't cover.
+enum DebugLog {
+    static func write(_ message: String) {
+        let file = Paths.activityLog.deletingLastPathComponent().appending(path: "debug.log")
+        let line = Data("\(ISO8601DateFormatter().string(from: Date())) \(message)\n".utf8)
+        if let handle = try? FileHandle(forWritingTo: file) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: line)
+        } else {
+            try? line.write(to: file)
+        }
+    }
+}

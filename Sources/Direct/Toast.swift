@@ -14,7 +14,7 @@ final class ToastController {
             self?.hide()
         } })
         let host = NSHostingController(rootView: view)
-        host.sizingOptions = [.preferredContentSize]
+        host.sizingOptions = []
         let panel = NSPanel(contentRect: .zero, styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
                             backing: .buffered, defer: false)
         panel.titlebarAppearsTransparent = true
@@ -26,7 +26,7 @@ final class ToastController {
         panel.hidesOnDeactivate = false
         panel.isReleasedWhenClosed = false
         panel.contentViewController = host
-        panel.setContentSize(host.view.fittingSize)
+        panel.setContentSize(host.sizeThatFits(in: NSSize(width: 10_000, height: 10_000)))
         panel.setFrameTopLeftPoint(topLeft ?? NSEvent.mouseLocation)
         panel.orderFrontRegardless()
         self.panel = panel
@@ -57,6 +57,7 @@ private struct ToastView: View {
             }
         }
         .padding(12)
-        .frame(maxWidth: 460, alignment: .leading)
+        .frame(width: 420, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }

@@ -74,34 +74,37 @@ public struct Decision: Sendable, Equatable {
     public var target: Target
     /// Names from the top-level rule down to the exception that decided. Empty means fallback.
     public var rulePath: [String]
+    /// The same path as positions: [2, 0] is the first exception of the third rule.
+    public var ruleIndices: [Int]
 }
 
 extension RuleSet {
     public func route(_ link: Link) -> Decision {
-        for rule in rules {
-            if let decision = rule.route(link, parents: []) { return decision }
+        for (index, rule) in rules.enumerated() {
+            if let decision = rule.route(link, names: [], indices: [index]) { return decision }
         }
-        return Decision(target: fallback, rulePath: [])
+        return Decision(target: fallback, rulePath: [], ruleIndices: [])
     }
 }
 
 extension Rule {
-    func route(_ link: Link, parents: [String]) -> Decision? {
+    func route(_ link: Link, names: [String], indices: [Int]) -> Decision? {
         guard enabled, when.allSatisfy({ $0.matches(link) }) else { return nil }
-        let path = parents + [name]
-        for exception in except {
-            if let decision = exception.route(link, parents: path) { return decision }
+        let names = names + [name]
+        for (index, exception) in except.enumerated() {
+            if let decision = exception.route(link, names: names, indices: indices + [index]) { return decision }
         }
-        return Decision(target: open, rulePath: path)
+        return Decision(target: open, rulePath: names, ruleIndices: indices)
     }
 }
 
 extension Condition {
+    /// An empty condition never matches, so a half-written rule can't catch links.
     func matches(_ link: Link) -> Bool {
         switch self {
         case let .host(value, match):
-            guard let host = link.url.host()?.lowercased() else { return false }
-            let value = value.lowercased()
+            let value = value.trimmingCharacters(in: .whitespaces).lowercased()
+            guard !value.isEmpty, let host = link.url.host()?.lowercased() else { return false }
             switch match {
             case .exactly: return host == value
             case .domain: return host == value || host.hasSuffix("." + value)
@@ -120,8 +123,10 @@ extension Condition {
 
 extension TextMatch {
     func test(_ text: String, _ value: String, caseSensitive: Bool) -> Bool {
+        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return false }
         let text = caseSensitive ? text : text.lowercased()
-        let value = caseSensitive ? value : value.lowercased()
+        let value = caseSensitive ? trimmed : trimmed.lowercased()
         switch self {
         case .contains: return text.contains(value)
         case .startsWith: return text.hasPrefix(value)

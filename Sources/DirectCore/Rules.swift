@@ -12,7 +12,7 @@ public struct Link: Sendable, Equatable {
 }
 
 /// Where a link opens. `profile` is a Chromium profile directory such as "Profile 14".
-public struct Target: Codable, Sendable, Equatable {
+public struct Target: Codable, Sendable, Hashable {
     public var browser: String
     public var profile: String?
 

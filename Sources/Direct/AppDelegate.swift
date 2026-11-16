@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import DirectCore
 
 @MainActor
@@ -7,6 +8,68 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Last app other than Direct to come to the front. Used when the event's sender is unknown.
     private var lastOtherApp: String?
+    private var statusItem: NSStatusItem?
+    private var rulesWindow: NSWindow?
+    private let store = RulesStore()
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        NSApp.mainMenu = Self.makeMainMenu()
+        let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        item.button?.image = NSImage(systemSymbolName: "arrow.triangle.branch", accessibilityDescription: "Direct")
+        let menu = NSMenu()
+        menu.addItem(withTitle: "Rules…", action: #selector(showRules), keyEquivalent: ",")
+        menu.addItem(withTitle: "Show Activity Log in Finder", action: #selector(showActivityLog), keyEquivalent: "")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Quit Direct", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "")
+        item.menu = menu
+        statusItem = item
+    }
+
+    /// Launching Direct.app again while it runs opens the rules window.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showRules()
+        return false
+    }
+
+    @objc func showRules() {
+        store.load()
+        if rulesWindow == nil {
+            let window = NSWindow(contentViewController: NSHostingController(rootView: RulesView(store: store)))
+            window.title = "Direct"
+            window.setContentSize(NSSize(width: 900, height: 600))
+            window.isReleasedWhenClosed = false
+            window.center()
+            rulesWindow = window
+        }
+        NSApp.activate()
+        rulesWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func showActivityLog() {
+        NSWorkspace.shared.activateFileViewerSelecting([Paths.activityLog])
+    }
+
+    /// Direct has no visible menu bar, but text fields still need these key equivalents.
+    /// There is deliberately no ⌘Q: quitting would stop links from being routed.
+    private static func makeMainMenu() -> NSMenu {
+        let edit = NSMenu(title: "Edit")
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = edit.addItem(withTitle: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        let window = NSMenu(title: "Window")
+        window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+
+        let main = NSMenu()
+        for submenu in [NSMenu(title: "Direct"), edit, window] {
+            let item = main.addItem(withTitle: submenu.title, action: nil, keyEquivalent: "")
+            item.submenu = submenu
+        }
+        return main
+    }
 
     func applicationWillFinishLaunching(_ notification: Notification) {
         NSAppleEventManager.shared().setEventHandler(

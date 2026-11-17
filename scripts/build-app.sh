@@ -10,7 +10,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp .build/release/Direct "$APP/Contents/MacOS/Direct"
 cp Support/Info.plist "$APP/Contents/Info.plist"
-cp Support/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
+cp Support/AppIcon.icns Support/Mark.svg "$APP/Contents/Resources/"
 cp -R Support/Fonts "$APP/Contents/Resources/Fonts"
 # Ad hoc signature: fine on this Mac. Other Macs would need a Developer ID and notarization.
 codesign --force --sign - "$APP"

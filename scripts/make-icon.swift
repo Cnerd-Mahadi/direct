@@ -1,16 +1,9 @@
-// Draws Direct's app icon (the signpost mark on a dark tile) and writes Support/AppIcon.icns.
+// Draws Direct's app icon (the ring and path mark on a dark tile) and writes Support/AppIcon.icns.
 // Run from the repo root: swift scripts/make-icon.swift
 import AppKit
 
-// The same parts as DirectMark in Sources/Direct/Theme.swift, on a 24-unit grid with y pointing down.
-let markParts: [(points: [CGPoint], closed: Bool, width: CGFloat, filled: Bool)] = [
-    ([CGPoint(x: 12, y: 11.2), CGPoint(x: 12, y: 12.3)], false, 2.2, false),
-    ([CGPoint(x: 12, y: 19.2), CGPoint(x: 12, y: 21.5)], false, 2.2, false),
-    ([CGPoint(x: 17, y: 13.4), CGPoint(x: 8.6, y: 13.4), CGPoint(x: 5.6, y: 15.8),
-      CGPoint(x: 8.6, y: 18.2), CGPoint(x: 17, y: 18.2)], true, 1.8, false),
-    ([CGPoint(x: 7, y: 4.4), CGPoint(x: 15.4, y: 4.4), CGPoint(x: 18.4, y: 6.8),
-      CGPoint(x: 15.4, y: 9.2), CGPoint(x: 7, y: 9.2)], true, 2.0, true),
-]
+let mark = NSImage(contentsOf: URL(filePath: "Support/Mark.svg"))!
+let lavender = NSColor(srgbRed: 0.894, green: 0.851, blue: 1, alpha: 1)
 
 func render(_ pixels: Int) -> Data {
     let size = CGFloat(pixels)
@@ -38,25 +31,22 @@ func render(_ pixels: Int) -> Data {
     shape.lineWidth = max(1, size / 512)
     shape.stroke()
 
-    // The mark, on a 24-unit grid, filling 62% of the tile.
-    let markSize = tile.width * 0.62
-    let unit = markSize / 24
-    let origin = NSPoint(x: tile.midX - markSize / 2, y: tile.midY + markSize / 2)
-    func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: origin.x + x * unit, y: origin.y - y * unit) }
-    // Thin strokes vanish at 16 and 32 px.
-    let weight: CGFloat = pixels <= 32 ? 1.25 : 1
-    NSColor(srgbRed: 0.894, green: 0.851, blue: 1, alpha: 1).set()
-    for part in markParts {
-        let path = NSBezierPath()
-        path.move(to: p(part.points[0].x, part.points[0].y))
-        part.points.dropFirst().forEach { path.line(to: p($0.x, $0.y)) }
-        if part.closed { path.close() }
-        path.lineWidth = part.width * unit * weight
-        path.lineCapStyle = .round
-        path.lineJoinStyle = .round
-        if part.filled { path.fill() }
-        path.stroke()
+    // The ring spans 216 of the mark's 256 units, so a 68% mark gives a ring about 57% of the tile.
+    // Small sizes get a bigger mark, or its strokes vanish.
+    let markSize = tile.width * (pixels <= 32 ? 0.84 : 0.68)
+    let markRect = NSRect(x: tile.midX - markSize / 2, y: tile.midY - markSize / 2, width: markSize, height: markSize)
+    let tinted = NSImage(size: markRect.size, flipped: false) { rect in
+        mark.draw(in: rect)
+        lavender.set()
+        rect.fill(using: .sourceIn)
+        return true
     }
+    let glow = NSShadow()
+    glow.shadowColor = NSColor.black.withAlphaComponent(0.35)
+    glow.shadowOffset = NSSize(width: 0, height: -size * 0.006)
+    glow.shadowBlurRadius = size * 0.012
+    glow.set()
+    tinted.draw(in: markRect)
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

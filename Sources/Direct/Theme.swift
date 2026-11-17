@@ -190,42 +190,15 @@ struct KeyCap: View {
     }
 }
 
-/// The signpost mark: a solid board pointing where the link goes, an outlined board for the
-/// other choice. scripts/make-icon.swift draws the app icon from a copy of these parts.
+/// The ring and path mark, drawn from Support/Mark.svg. scripts/make-icon.swift draws the app icon from the same file.
 enum DirectMark {
-    private struct Part {
-        var points: [CGPoint]
-        var closed: Bool
-        var width: CGFloat
-        var filled: Bool
-    }
-
-    /// On a 24-unit grid, y pointing down.
-    private static let parts = [
-        Part(points: [CGPoint(x: 12, y: 11.2), CGPoint(x: 12, y: 12.3)], closed: false, width: 2.2, filled: false),
-        Part(points: [CGPoint(x: 12, y: 19.2), CGPoint(x: 12, y: 21.5)], closed: false, width: 2.2, filled: false),
-        Part(points: [CGPoint(x: 17, y: 13.4), CGPoint(x: 8.6, y: 13.4), CGPoint(x: 5.6, y: 15.8),
-                      CGPoint(x: 8.6, y: 18.2), CGPoint(x: 17, y: 18.2)], closed: true, width: 1.8, filled: false),
-        Part(points: [CGPoint(x: 7, y: 4.4), CGPoint(x: 15.4, y: 4.4), CGPoint(x: 18.4, y: 6.8),
-                      CGPoint(x: 15.4, y: 9.2), CGPoint(x: 7, y: 9.2)], closed: true, width: 2.0, filled: true),
-    ]
-
     /// A template image, so macOS tints it for light, dark and tinted menu bars, and SwiftUI can color it.
     nonisolated static func image(size: CGFloat) -> NSImage {
-        let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { rect in
-            let unit = rect.width / 24
-            NSColor.black.set()
-            for part in parts {
-                let path = NSBezierPath()
-                path.move(to: NSPoint(x: part.points[0].x * unit, y: part.points[0].y * unit))
-                part.points.dropFirst().forEach { path.line(to: NSPoint(x: $0.x * unit, y: $0.y * unit)) }
-                if part.closed { path.close() }
-                path.lineWidth = part.width * unit
-                path.lineCapStyle = .round
-                path.lineJoinStyle = .round
-                if part.filled { path.fill() }
-                path.stroke()
-            }
+        // A plain `swift run` has no bundle resources, so the mark falls back to a system circle.
+        let source = Bundle.main.url(forResource: "Mark", withExtension: "svg").flatMap(NSImage.init(contentsOf:))
+            ?? NSImage(systemSymbolName: "circle", accessibilityDescription: nil)!
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: false) { rect in
+            source.draw(in: rect)
             return true
         }
         image.isTemplate = true

@@ -54,4 +54,5 @@ Removed files go to the Trash.
 
 - `Sources/DirectCore` holds the routing logic, the rules file format, and browser profile discovery. It has no UI and is fully tested.
 - `Sources/Direct` holds the app: the menu bar item, the window, the picker, and opening links.
-- `Support` holds `Info.plist`, the app icon, and the bundled fonts (Figtree and EB Garamond, both under the SIL Open Font License).
+- `Support` holds `Info.plist`, the app icon, the mark, and the bundled fonts (Figtree and EB Garamond, both under the SIL Open Font License).
+- `Support/Mark.svg` is the mark in the menu bar and the window. It combines Phosphor's circle and path icons (MIT). After changing it, run `swift scripts/make-icon.swift` to redraw the app icon.

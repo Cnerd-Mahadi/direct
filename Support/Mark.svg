@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" fill="#000">
-  <!-- Direct's mark: Phosphor's "circle" and "path" icons, bold weight (MIT, phosphoricons.com). -->
-  <path d="M128,20A108,108,0,1,0,236,128,108.12,108.12,0,0,0,128,20Zm0,192a84,84,0,1,1,84-84A84.09,84.09,0,0,1,128,212Z"/>
-  <path transform="translate(128 128) scale(0.56) translate(-128 -128)" d="M200,164a36.07,36.07,0,0,0-33.94,24H72a28,28,0,0,1,0-56h96a44,44,0,0,0,0-88H72a12,12,0,0,0,0,24h96a20,20,0,0,1,0,40H72a52,52,0,0,0,0,104h94.06A36,36,0,1,0,200,164Zm0,48a12,12,0,1,1,12-12A12,12,0,0,1,200,212Z"/>
+  <!-- Direct's mark: a solid disc with Phosphor's "path" icon (bold, MIT, phosphoricons.com) cut out of it,
+       scaled to 56% about the centre. The fill rule cuts the path out of the disc. -->
+  <path fill-rule="evenodd" d="M20,128a108,108,0,1,0,216,0a108,108,0,1,0,-216,0Z M 168.32,148.16 a 20.199,20.199,0,0,0,-19.006,13.44 H 96.64 a 15.68,15.68,0,0,1,0,-31.36 h 53.76 a 24.64,24.64,0,0,0,0,-49.28 H 96.64 a 6.72,6.72,0,0,0,0,13.44 h 53.76 a 11.2,11.2,0,0,1,0,22.4 H 96.64 a 29.12,29.12,0,0,0,0,58.24 h 52.674 A 20.16,20.16,0,1,0,168.32,148.16 Z m 0,26.88 a 6.72,6.72,0,1,1,6.72,-6.72 A 6.72,6.72,0,0,1,168.32,175.04 Z"/>
 </svg>

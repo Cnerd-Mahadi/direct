@@ -1,4 +1,4 @@
-// Draws Direct's app icon (the ring and path mark on a dark tile) and writes Support/AppIcon.icns.
+// Draws Direct's app icon (the solid disc mark on a dark tile) and writes Support/AppIcon.icns.
 // Run from the repo root: swift scripts/make-icon.swift
 import AppKit
 
@@ -31,7 +31,7 @@ func render(_ pixels: Int) -> Data {
     shape.lineWidth = max(1, size / 512)
     shape.stroke()
 
-    // The ring spans 216 of the mark's 256 units, so a 68% mark gives a ring about 57% of the tile.
+    // The disc spans 216 of the mark's 256 units, so a 68% mark gives a disc about 57% of the tile.
     // Small sizes get a bigger mark, or its strokes vanish.
     let markSize = tile.width * (pixels <= 32 ? 0.84 : 0.68)
     let markRect = NSRect(x: tile.midX - markSize / 2, y: tile.midY - markSize / 2, width: markSize, height: markSize)

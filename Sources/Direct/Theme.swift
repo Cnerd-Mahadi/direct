@@ -190,7 +190,7 @@ struct KeyCap: View {
     }
 }
 
-/// The ring and path mark, drawn from Support/Mark.svg. scripts/make-icon.swift draws the app icon from the same file.
+/// The mark, a solid disc with a path cut out, drawn from Support/Mark.svg. scripts/make-icon.swift draws the app icon from the same file.
 enum DirectMark {
     /// A template image, so macOS tints it for light, dark and tinted menu bars, and SwiftUI can color it.
     nonisolated static func image(size: CGFloat) -> NSImage {

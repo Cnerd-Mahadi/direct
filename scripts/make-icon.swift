@@ -1,6 +1,16 @@
-// Draws Direct's app icon (the fork mark on a dark tile) and writes Support/AppIcon.icns.
+// Draws Direct's app icon (the signpost mark on a dark tile) and writes Support/AppIcon.icns.
 // Run from the repo root: swift scripts/make-icon.swift
 import AppKit
+
+// The same parts as DirectMark in Sources/Direct/Theme.swift, on a 24-unit grid with y pointing down.
+let markParts: [(points: [CGPoint], closed: Bool, width: CGFloat, filled: Bool)] = [
+    ([CGPoint(x: 12, y: 11.2), CGPoint(x: 12, y: 12.3)], false, 2.2, false),
+    ([CGPoint(x: 12, y: 19.2), CGPoint(x: 12, y: 21.5)], false, 2.2, false),
+    ([CGPoint(x: 17, y: 13.4), CGPoint(x: 8.6, y: 13.4), CGPoint(x: 5.6, y: 15.8),
+      CGPoint(x: 8.6, y: 18.2), CGPoint(x: 17, y: 18.2)], true, 1.8, false),
+    ([CGPoint(x: 7, y: 4.4), CGPoint(x: 15.4, y: 4.4), CGPoint(x: 18.4, y: 6.8),
+      CGPoint(x: 15.4, y: 9.2), CGPoint(x: 7, y: 9.2)], true, 2.0, true),
+]
 
 func render(_ pixels: Int) -> Data {
     let size = CGFloat(pixels)
@@ -28,22 +38,25 @@ func render(_ pixels: Int) -> Data {
     shape.lineWidth = max(1, size / 512)
     shape.stroke()
 
-    // The mark, on a 24-unit grid, filling 56% of the tile.
-    let markSize = tile.width * 0.56
+    // The mark, on a 24-unit grid, filling 62% of the tile.
+    let markSize = tile.width * 0.62
     let unit = markSize / 24
     let origin = NSPoint(x: tile.midX - markSize / 2, y: tile.midY + markSize / 2)
     func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: origin.x + x * unit, y: origin.y - y * unit) }
-    let mark = NSBezierPath()
-    for segment in [[p(12, 21), p(12, 13), p(6, 7)], [p(12, 13), p(18, 7)], [p(5, 11), p(5, 6), p(10, 6)],
-                    [p(19, 11), p(19, 6), p(14, 6)]] {
-        mark.move(to: segment[0])
-        segment.dropFirst().forEach(mark.line)
+    // Thin strokes vanish at 16 and 32 px.
+    let weight: CGFloat = pixels <= 32 ? 1.25 : 1
+    NSColor(srgbRed: 0.894, green: 0.851, blue: 1, alpha: 1).set()
+    for part in markParts {
+        let path = NSBezierPath()
+        path.move(to: p(part.points[0].x, part.points[0].y))
+        part.points.dropFirst().forEach { path.line(to: p($0.x, $0.y)) }
+        if part.closed { path.close() }
+        path.lineWidth = part.width * unit * weight
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        if part.filled { path.fill() }
+        path.stroke()
     }
-    mark.lineWidth = unit * (pixels <= 32 ? 2.8 : 2.2)
-    mark.lineCapStyle = .round
-    mark.lineJoinStyle = .round
-    NSColor(srgbRed: 0.894, green: 0.851, blue: 1, alpha: 1).setStroke()
-    mark.stroke()
     NSGraphicsContext.restoreGraphicsState()
     return rep.representation(using: .png, properties: [:])!
 }

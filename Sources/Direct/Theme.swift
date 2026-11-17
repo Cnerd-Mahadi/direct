@@ -190,42 +190,48 @@ struct KeyCap: View {
     }
 }
 
-/// The fork mark, drawn from the same path everywhere: menu bar, sidebar and app icon.
-struct DirectMark: Shape {
-    func path(in rect: CGRect) -> Path {
-        let s = min(rect.width, rect.height) / 24
-        func p(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: rect.minX + x * s, y: rect.minY + y * s) }
-        var path = Path()
-        path.move(to: p(12, 21)); path.addLine(to: p(12, 13)); path.addLine(to: p(6, 7))
-        path.move(to: p(12, 13)); path.addLine(to: p(18, 7))
-        path.move(to: p(5, 11)); path.addLine(to: p(5, 6)); path.addLine(to: p(10, 6))
-        path.move(to: p(19, 11)); path.addLine(to: p(19, 6)); path.addLine(to: p(14, 6))
-        return path
+/// The signpost mark: a solid board pointing where the link goes, an outlined board for the
+/// other choice. scripts/make-icon.swift draws the app icon from a copy of these parts.
+enum DirectMark {
+    private struct Part {
+        var points: [CGPoint]
+        var closed: Bool
+        var width: CGFloat
+        var filled: Bool
     }
-}
 
-extension DirectMark {
-    /// A template image for the menu bar, so macOS tints it for light, dark and tinted bars.
-    nonisolated static func menuBarImage() -> NSImage {
-        let size = NSSize(width: 18, height: 18)
-        let image = NSImage(size: size, flipped: true) { rect in
-            let path = NSBezierPath()
-            let s = rect.width / 24
-            func p(_ x: CGFloat, _ y: CGFloat) -> NSPoint { NSPoint(x: x * s, y: y * s) }
-            for segment in [[p(12, 21), p(12, 13), p(6, 7)], [p(12, 13), p(18, 7)], [p(5, 11), p(5, 6), p(10, 6)],
-                            [p(19, 11), p(19, 6), p(14, 6)]] {
-                path.move(to: segment[0])
-                segment.dropFirst().forEach(path.line)
+    /// On a 24-unit grid, y pointing down.
+    private static let parts = [
+        Part(points: [CGPoint(x: 12, y: 11.2), CGPoint(x: 12, y: 12.3)], closed: false, width: 2.2, filled: false),
+        Part(points: [CGPoint(x: 12, y: 19.2), CGPoint(x: 12, y: 21.5)], closed: false, width: 2.2, filled: false),
+        Part(points: [CGPoint(x: 17, y: 13.4), CGPoint(x: 8.6, y: 13.4), CGPoint(x: 5.6, y: 15.8),
+                      CGPoint(x: 8.6, y: 18.2), CGPoint(x: 17, y: 18.2)], closed: true, width: 1.8, filled: false),
+        Part(points: [CGPoint(x: 7, y: 4.4), CGPoint(x: 15.4, y: 4.4), CGPoint(x: 18.4, y: 6.8),
+                      CGPoint(x: 15.4, y: 9.2), CGPoint(x: 7, y: 9.2)], closed: true, width: 2.0, filled: true),
+    ]
+
+    /// A template image, so macOS tints it for light, dark and tinted menu bars, and SwiftUI can color it.
+    nonisolated static func image(size: CGFloat) -> NSImage {
+        let image = NSImage(size: NSSize(width: size, height: size), flipped: true) { rect in
+            let unit = rect.width / 24
+            NSColor.black.set()
+            for part in parts {
+                let path = NSBezierPath()
+                path.move(to: NSPoint(x: part.points[0].x * unit, y: part.points[0].y * unit))
+                part.points.dropFirst().forEach { path.line(to: NSPoint(x: $0.x * unit, y: $0.y * unit)) }
+                if part.closed { path.close() }
+                path.lineWidth = part.width * unit
+                path.lineCapStyle = .round
+                path.lineJoinStyle = .round
+                if part.filled { path.fill() }
+                path.stroke()
             }
-            path.lineWidth = 2 * s * 0.95
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
-            NSColor.black.setStroke()
-            path.stroke()
             return true
         }
         image.isTemplate = true
         image.accessibilityDescription = "Direct"
         return image
     }
+
+    nonisolated static func menuBarImage() -> NSImage { image(size: 18) }
 }

@@ -74,8 +74,10 @@ struct HubView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
-                DirectMark().stroke(Theme.text, style: StrokeStyle(lineWidth: 2.2, lineCap: .round, lineJoin: .round))
-                    .frame(width: 20, height: 20)
+                Image(nsImage: DirectMark.image(size: 22))
+                    .renderingMode(.template)
+                    .foregroundStyle(Theme.text)
+                    .accessibilityHidden(true)
                 Text("Direct").font(Theme.ui(18, .bold))
             }
             .padding(.horizontal, 10)
